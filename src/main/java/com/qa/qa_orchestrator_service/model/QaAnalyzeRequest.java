@@ -21,29 +21,42 @@ public class QaAnalyzeRequest {
 
     /**
      * Normalizes issueKey to Jira format.
+     *
+     * Strategy:
+     * 1. Extract only the digits from the input
+     * 2. Use "PROJ" as the default project prefix
+     * 3. Return PROJ-{number}
+     *
      * Examples:
-     *   "project-5"   → "PROJECT-5"
-     *   "proj 5"      → "PROJ-5"
-     *   "PROJ-5"      → "PROJ-5"
-     *   "proj5"       → "PROJ-5"  (if digits follow letters directly)
+     *   "project-4"   → "PROJ-4"
+     *   "PROJECT-4"   → "PROJ-4"
+     *   "proj-4"      → "PROJ-4"
+     *   "PROJ-4"      → "PROJ-4"
+     *   "project 4"   → "PROJ-4"
+     *   "analyze project-4" → "PROJ-4"
+     *   "proj4"       → "PROJ-4"
      */
     private String normalize(String raw) {
-        // Uppercase everything
-        String upper = raw.toUpperCase();
+        if (raw == null || raw.isBlank()) return raw;
 
-        // Replace spaces with dash
+        String upper = raw.toUpperCase().trim();
+
+        // If already in correct PROJ-N format, return as-is
+        if (upper.matches("PROJ-\\d+")) {
+            return upper;
+        }
+
+        // Extract digits from the input
+        String digits = upper.replaceAll("[^0-9]", "");
+
+        if (!digits.isEmpty()) {
+            return "PROJ-" + digits;
+        }
+
+        // Fallback: uppercase and clean
         upper = upper.replaceAll("\\s+", "-");
-
-        // If letters followed directly by digits with no dash, insert dash
-        // e.g. PROJ5 → PROJ-5
-        upper = upper.replaceAll("([A-Z])([0-9])", "$1-$2");
-
-        // Remove any characters that aren't letters, digits, or dash
         upper = upper.replaceAll("[^A-Z0-9\\-]", "");
-
-        // Collapse multiple dashes
         upper = upper.replaceAll("-{2,}", "-");
-
         return upper;
     }
 }
