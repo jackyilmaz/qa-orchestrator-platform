@@ -480,3 +480,148 @@ definitions:
         type: string
 
 securityDefinitions: {}
+
+  /qa/api/v1/agent/requirements:
+    post:
+      operationId: getRequirements
+      summary: Get requirement analysis only
+      description: Returns ONLY the requirement analysis stage for a Jira issue. Use this for the requirement analyzer agent.
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            type: object
+            required:
+              - issueKey
+            properties:
+              issueKey:
+                type: string
+      responses:
+        '200':
+          description: Requirement analysis result
+          schema:
+            type: object
+            properties:
+              result:
+                type: string
+
+  /qa/api/v1/agent/testcases:
+    post:
+      operationId: getTestCases
+      summary: Get test cases only
+      description: Returns ONLY the test cases for a Jira issue. Use this for the test case generator agent.
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            type: object
+            required:
+              - issueKey
+            properties:
+              issueKey:
+                type: string
+      responses:
+        '200':
+          description: Test cases result
+          schema:
+            type: object
+            properties:
+              result:
+                type: string
+
+  /qa/api/v1/agent/risk:
+    post:
+      operationId: getRiskAnalysis
+      summary: Get risk analysis only
+      description: Returns ONLY the risk analysis for a Jira issue. Use this for the risk predictor agent.
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            type: object
+            required:
+              - issueKey
+            properties:
+              issueKey:
+                type: string
+      responses:
+        '200':
+          description: Risk analysis result
+          schema:
+            type: object
+            properties:
+              result:
+                type: string
+
+  /qa/api/v1/agent/automation:
+    post:
+      operationId: getAutomationStrategy
+      summary: Get automation strategy only
+      description: Returns ONLY the automation strategy for a Jira issue. Use this for the automation builder agent.
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            type: object
+            required:
+              - issueKey
+            properties:
+              issueKey:
+                type: string
+      responses:
+        '200':
+          description: Automation strategy result
+          schema:
+            type: object
+            properties:
+              result:
+                type: string
+
+  /qa/api/v1/agent/bugreport:
+    post:
+      operationId: getBugReport
+      summary: Get bug report only
+      description: Returns ONLY the bug report for a Jira issue. Use this for the bug reporter agent.
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            type: object
+            required:
+              - issueKey
+            properties:
+              issueKey:
+                type: string
+      responses:
+        '200':
+          description: Bug report result
+          schema:
+            type: object
+            properties:
+              result:
+                type: string
