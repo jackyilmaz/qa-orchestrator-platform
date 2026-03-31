@@ -95,23 +95,33 @@ public class QaAgentController {
         QaAnalysisResult r = service.runAnalysis(request.getIssueKey());
         StringBuilder sb = new StringBuilder();
         sb.append("🐛 Bug Report — ").append(r.getTraceabilityId()).append("\n\n");
-        String section = extractSection(r.getRawOutput(), "STAGE 5", "STAGE 6");
-        if (section != null && !section.isBlank()) {
-            sb.append(section.trim());
+
+        var stages = r.getStages();
+        var bugReport = stages != null ? stages.getBugReport() : null;
+
+        if (bugReport != null) {
+            sb.append("Title: ").append(safe(bugReport.getTitle())).append("\n");
+            sb.append("Environment: ").append(safe(bugReport.getEnvironment())).append("\n");
+            sb.append("Severity: ").append(safe(bugReport.getSeverity())).append("\n");
+            sb.append("Priority: ").append(safe(bugReport.getPriority())).append("\n\n");
+            if (bugReport.getReproductionSteps() != null) {
+                sb.append("Reproduction Steps:\n");
+                for (int i = 0; i < bugReport.getReproductionSteps().size(); i++) {
+                    sb.append("  ").append(i + 1).append(". ")
+                      .append(bugReport.getReproductionSteps().get(i)).append("\n");
+                }
+            }
+            sb.append("\nExpected Result: ").append(safe(bugReport.getExpectedResult())).append("\n");
+            sb.append("Actual Result: To be filled by QA engineer after test execution.\n\n");
+            if (bugReport.getAffectedAreas() != null) {
+                sb.append("Affected Areas:\n");
+                bugReport.getAffectedAreas().forEach(a -> sb.append("  - ").append(a).append("\n"));
+            }
+            sb.append("Suggested Assignee: ").append(safe(bugReport.getSuggestedAssignee())).append("\n");
         } else {
             sb.append("Bug report not available for this issue.");
         }
         return Map.of("result", sb.toString().trim());
-    }
-
-    private String extractSection(String raw, String start, String end) {
-        if (raw == null) return null;
-        int s = raw.indexOf(start);
-        if (s == -1) return null;
-        s += start.length();
-        int e = raw.indexOf(end, s);
-        if (e == -1) e = raw.length();
-        return raw.substring(s, e).trim();
     }
 
     private void appendList(StringBuilder sb, String title, List<String> items) {
