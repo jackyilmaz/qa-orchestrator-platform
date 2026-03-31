@@ -9,11 +9,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-/**
- * QaAgentController — Copilot Studio dedicated endpoints
- * Returns only the relevant pipeline stage as clean formatted text.
- * Existing endpoints are NOT modified.
- */
 @RestController
 @RequestMapping("/qa/api/v1/agent")
 public class QaAgentController {
