@@ -11,7 +11,7 @@ Each pipeline stage is powered by a large language model (LLM). Stages are not i
 ## High Level Architecture
 
 ```
-User / Copilot Studio / Power Automate
+User / Copilot Studio / Power Automate / Jira Webhook
             │
             ▼
       Custom API Connector
@@ -21,10 +21,32 @@ User / Copilot Studio / Power Automate
             │
             ▼
       Spring Boot Service
-         │         │
-         ▼         ▼
-   Jira REST    Groq LLM
+         │         │         │
+         ▼         ▼         ▼
+   Jira REST    Groq LLM  Neon PostgreSQL
       API          API
+```
+
+---
+
+## Multi-Agent Architecture
+
+Each Copilot Studio agent calls a dedicated backend endpoint that returns only its relevant stage. No full pipeline dumps in chat.
+
+```
+Microsoft Teams (natural language)
+        │
+        ▼
+Copilot Studio Agent (detects intent, extracts issueKey)
+        │
+        ▼
+Dedicated Agent Endpoint (/qa/api/v1/agent/*)
+        │
+        ▼
+QA Orchestrator Service (runs full pipeline)
+        │
+        ▼
+Focused Stage Response (only relevant stage returned)
 ```
 
 ---
@@ -82,8 +104,11 @@ Structured QA Response (analysis.stages)
 - Maven
 
 ### LLM
-- Groq API (Llama 3.3 70B)
-- Pluggable — can switch to Claude or OpenAI by replacing GroqClient
+- Groq API (Llama 3.3 70B) — default
+- Pluggable via LlmClient interface — Azure OpenAI, AWS Bedrock supported
+
+### Database
+- Neon PostgreSQL (free tier, no expiry, AWS US East 1)
 
 ### Infrastructure
 - Docker
@@ -91,9 +116,8 @@ Structured QA Response (analysis.stages)
 
 ### Integrations
 - Jira REST API
-- Microsoft Copilot Studio
-- Power Automate
-- Custom API Connector
+- Microsoft Copilot Studio (7 dedicated agents)
+- Power Automate (custom connector, Swagger v3)
 
 ---
 
@@ -102,12 +126,19 @@ Structured QA Response (analysis.stages)
 ```
 com.qa.qa_orchestrator_service
 ├── controller
-│   └── QaController.java
+│   ├── QaController.java
+│   ├── QaAgentController.java        ← dedicated Copilot agent endpoints
+│   ├── HistoryController.java
+│   ├── TrendController.java
+│   ├── DashboardController.java
+│   ├── HealthController.java
+│   ├── JiraWebhookController.java
+│   └── RootController.java
 ├── jira
 │   └── JiraClient.java
 ├── model
 │   ├── QaAnalysisResult.java
-│   ├── QaAnalyzeRequest.java
+│   ├── QaAnalyzeRequest.java         ← includes issueKey normalization
 │   ├── QaAnalyzeResponse.java
 │   ├── QaStagesArtifact.java
 │   ├── QaTestCase.java
@@ -116,18 +147,31 @@ com.qa.qa_orchestrator_service
 │   ├── AutomationStageArtifact.java
 │   ├── RiskStageArtifact.java
 │   └── BugReportStageArtifact.java
-└── service
-    ├── QaOrchestratorService.java
-    ├── llm
-    │   └── GroqClient.java
-    └── stage
-        ├── RequirementAnalysisStage.java
-        ├── TestDesignStage.java
-        ├── AutomationDecisionStage.java
-        ├── RiskAnalysisStage.java
-        ├── BugReportStage.java
-        ├── AnalysisSummaryStage.java
-        └── StageAggregationStage.java
+├── repository
+│   ├── AnalysisRecord.java
+│   └── AnalysisRecordRepository.java
+├── service
+│   ├── QaOrchestratorService.java
+│   ├── AnalysisRecordService.java
+│   ├── PipelineLogger.java
+│   ├── llm
+│   │   ├── LlmClient.java            ← interface
+│   │   ├── GroqClient.java
+│   │   ├── AzureOpenAiClient.java
+│   │   └── AwsBedrockClient.java
+│   └── stage
+│       ├── RequirementAnalysisStage.java
+│       ├── TestDesignStage.java
+│       ├── AutomationDecisionStage.java
+│       ├── RiskAnalysisStage.java
+│       ├── BugReportStage.java
+│       ├── ReleaseSummaryStage.java
+│       ├── AnalysisSummaryStage.java
+│       └── StageAggregationStage.java
+├── tenant
+│   └── TenantConfig.java
+└── util
+    └── IssueKeyNormalizer.java
 ```
 
 ---
@@ -136,11 +180,17 @@ com.qa.qa_orchestrator_service
 
 **Stages feed each other** — TestDesignStage does not re-read the Jira JSON. It reads `clarifiedRequirements` and `edgeCases` from RequirementStage output. This is the core pipeline pattern.
 
-**LLM client is pluggable** — `GroqClient` is a `@Component` injected into each stage. Switching to Claude or OpenAI requires replacing only this class.
+**LLM client is pluggable** — `LlmClient` is an interface. Switch providers by changing `LLM_PROVIDER` env var — no code changes required.
 
 **Graceful fallback on LLM error** — every stage has a fallback that prevents pipeline crash. If Groq fails on one stage, the pipeline continues with a default artifact.
 
+**Dedicated agent endpoints** — `QaAgentController` exposes 5 focused endpoints (`/qa/api/v1/agent/*`). Each runs the full pipeline internally but returns only its relevant stage as plain text. Copilot agents call these directly.
+
+**IssueKey normalization** — `IssueKeyNormalizer` converts any format ("project-8", "PROJECT-8", "proj-8") to canonical form ("PROJ-8") before Jira API calls.
+
 **Single pipeline execution per request** — the controller calls `runAnalysis()` once. Pipeline does not run twice.
+
+**Neon PostgreSQL** — migrated from Render free PostgreSQL (expires) to Neon free tier (no expiry). Zero downtime migration via env var update.
 
 ---
 
@@ -149,4 +199,5 @@ com.qa.qa_orchestrator_service
 - QA Context Service — historical ticket and bug awareness per component
 - Coverage-aware risk scoring — adjusts risk based on existing test coverage
 - Release decision engine — structured go/no-go logic with override support
-- Web dashboard — visualizes QA insights per sprint or release
+- Multi-tenant DB isolation — per-customer schema or database
+- Rate limiting per tenant — prevent LLM abuse

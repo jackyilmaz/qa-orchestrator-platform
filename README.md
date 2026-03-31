@@ -3,12 +3,12 @@
 ![Java](https://img.shields.io/badge/Java-17-blue)
 ![Spring Boot](https://img.shields.io/badge/SpringBoot-3-green)
 ![API](https://img.shields.io/badge/API-Live-brightgreen)
-![Contract](https://img.shields.io/badge/Contract-v3-orange)
+![Contract](https://img.shields.io/badge/Contract-v2-orange)
 ![LLM](https://img.shields.io/badge/LLM-Groq%20%2F%20Llama%203.3-purple)
-![DB](https://img.shields.io/badge/DB-PostgreSQL-blue)
+![DB](https://img.shields.io/badge/DB-Neon%20PostgreSQL-blue)
 ![Copilot](https://img.shields.io/badge/Copilot-Studio-0078d4)
 
-**QA Orchestrator Platform** is an AI-powered QA decision engine covering the full QA lifecycle — from ticket creation to release — integrated with Microsoft Copilot Studio and Power Automate.
+**QA Orchestrator Platform** is an AI-powered QA decision engine covering the full QA lifecycle — from ticket creation to release — integrated with Microsoft Copilot Studio and Power Automate as a 7-agent system.
 
 ---
 
@@ -19,6 +19,7 @@
 | Dashboard | https://qa-orchestrator-service.onrender.com |
 | API | https://qa-orchestrator-service.onrender.com/qa/api/v1/qa/analyze |
 | Health | https://qa-orchestrator-service.onrender.com/qa/health |
+| Website | https://vooabi.com |
 
 ---
 
@@ -43,7 +44,7 @@ Ticket → "Done"       → QA Release Summary generated
 ## System Architecture
 
 ```
-Jira (webhook) / Copilot Studio / Power Automate
+User / Copilot Studio / Power Automate / Jira Webhook
             │
             ▼
     QA Orchestrator API
@@ -52,8 +53,26 @@ Jira (webhook) / Copilot Studio / Power Automate
      Spring Boot Service
        │           │           │
        ▼           ▼           ▼
-  Jira REST    LLM API     PostgreSQL
+  Jira REST    LLM API     Neon PostgreSQL
 ```
+
+---
+
+## Multi-Agent Copilot Studio
+
+7 dedicated agents — each returns only its relevant stage output. No full pipeline dumps in chat.
+
+| Agent | Trigger Example | Dedicated Endpoint |
+|-------|----------------|--------------------|
+| `agent_requirement_analyzer` | "What are the requirements for project-5" | `POST /qa/api/v1/agent/requirements` |
+| `agent_test_case_generator` | "Create test cases for project-6" | `POST /qa/api/v1/agent/testcases` |
+| `agent_risk_predictor` | "What is the risk for project-7" | `POST /qa/api/v1/agent/risk` |
+| `agent_automation_builder` | "Automation strategy for project-8" | `POST /qa/api/v1/agent/automation` |
+| `agent_bug_reporter` | "Create a bug report for project-5" | `POST /qa/api/v1/agent/bugreport` |
+| `agent_intelligence_summary` | "Give me a QA summary" | `GET /qa/api/v1/intelligence/summary` |
+| `agent_release_summary` | "Which tickets have been released" | `GET /qa/api/v1/intelligence/released/summary` |
+
+Issue key normalization is automatic — "project-8" → "PROJ-8", "create a bug report for project-8" → "PROJ-8".
 
 ---
 
@@ -80,26 +99,12 @@ Jira (webhook) / Copilot Studio / Power Automate
 
 ---
 
-## Copilot Studio Topics
-
-| Topic | Trigger | Action |
-|-------|---------|--------|
-| `agent_requirement_analyzer` | "Analyze PROJ-4" | `analyzeQaIssue` |
-| `agent_test_case_generator` | "Generate test cases" | `analyzeQaIssue` |
-| `agent_risk_predictor` | "What is the risk?" | `analyzeQaIssue` |
-| `agent_automation_builder` | "Automation strategy" | `analyzeQaIssue` |
-| `agent_bug_reporter` | "Create bug report" | `analyzeQaIssue` |
-| `agent_intelligence_summary` | "QA summary / risk status" | `getIntelligenceSummary` |
-| `agent_release_summary` | "Released tickets / verdict" | `getReleasedSummaryForCopilot` |
-
----
-
 ## Intelligence Dashboard
 
 `https://qa-orchestrator-service.onrender.com`
 
 - Metrics: total analyses, avg risk, blocked, released
-- Risk distribution chart + Release decision chart
+- Risk distribution + release decision charts
 - Recent analyses — searchable, filterable by risk and release
 - Blocked tickets — searchable
 - Released tickets with QA verdicts — searchable
@@ -119,13 +124,30 @@ Setup: Jira → System → WebHooks → URL: `https://qa-orchestrator-service.on
 
 ## API Endpoints
 
+### Core
+
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/` | Redirects to dashboard |
 | GET | `/qa/health` | Health + intelligence summary |
 | GET | `/qa/dashboard` | Intelligence Dashboard |
-| POST | `/qa/api/v1/qa/analyze` | Manual analysis |
+| POST | `/qa/api/v1/qa/analyze` | Full pipeline analysis |
 | POST | `/qa/webhook/jira` | Jira webhook |
+
+### Agent Endpoints (Copilot Studio)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/qa/api/v1/agent/requirements` | Requirements only |
+| POST | `/qa/api/v1/agent/testcases` | Test cases only |
+| POST | `/qa/api/v1/agent/risk` | Risk analysis only |
+| POST | `/qa/api/v1/agent/automation` | Automation strategy only |
+| POST | `/qa/api/v1/agent/bugreport` | Bug report only |
+
+### History & Intelligence
+
+| Method | Path | Description |
+|--------|------|-------------|
 | GET | `/qa/api/v1/history` | Last 10 analyses |
 | GET | `/qa/api/v1/history/{issueKey}` | Per-issue history |
 | GET | `/qa/api/v1/intelligence/summary` | Intelligence summary |
@@ -154,10 +176,29 @@ Setup: Jira → System → WebHooks → URL: `https://qa-orchestrator-service.on
 | `AWS_SECRET_KEY` | Yes (AWS) | AWS secret key |
 | `AWS_REGION` | No | AWS region (default: us-east-1) |
 | `LLM_PROVIDER` | No | groq / azure / aws (default: groq) |
-| `SPRING_DATASOURCE_URL` | Yes | PostgreSQL JDBC URL |
+| `SPRING_DATASOURCE_URL` | Yes | Neon PostgreSQL JDBC URL |
 | `SPRING_DATASOURCE_USERNAME` | Yes | PostgreSQL username |
 | `SPRING_DATASOURCE_PASSWORD` | Yes | PostgreSQL password |
-| `JIRA_COMMENT_ENABLED` | No | Jira comment on analysis (default: false) |
+| `JIRA_COMMENT_ENABLED` | No | Post analysis to Jira comment (default: false) |
+
+---
+
+## Local Development
+
+```bash
+export JIRA_BASE_URL=https://your-domain.atlassian.net
+export JIRA_EMAIL=your-email@example.com
+export JIRA_API_TOKEN=your-jira-api-token
+export GROQ_API_KEY=gsk_...
+
+./mvnw spring-boot:run
+```
+
+```bash
+curl -X POST http://localhost:10000/qa/api/v1/qa/analyze \
+-H "Content-Type: application/json" \
+-d '{"issueKey":"PROJ-4"}'
+```
 
 ---
 
@@ -175,4 +216,6 @@ Setup: Jira → System → WebHooks → URL: `https://qa-orchestrator-service.on
 | 8 | ✅ | Dashboard — search, filtering, record counts |
 | 9 | ✅ | Multi-tenant foundation — TenantConfig, architecture ready |
 | 10 | ✅ | Risk trend analysis — timeline, trends, reanalyzed issues |
-| 11 | 📋 | Production hardening — Azure/AWS, SOC2, rate limiting |
+| 11 | ✅ | Multi-Agent Copilot Studio — 7 dedicated agents, focused endpoints |
+| 12 | ✅ | Database migration — Render → Neon PostgreSQL (free, no expiry) |
+| 13 | 📋 | Production hardening — Azure/AWS, SOC2, rate limiting |

@@ -45,7 +45,21 @@
 - `/qa/api/v1/intelligence/released/summary` — Copilot-friendly release summary
 - Swagger v3 updated with all new endpoints
 
-## Phase 11 — Production Hardening 📋 Planned
+## Phase 11 — Multi-Agent Copilot Studio ✅ Complete
+- 7 dedicated Copilot agents — each returns only its relevant stage
+- Dedicated backend endpoints per agent (`/qa/api/v1/agent/*`)
+- issueKey normalization — "project-8" → "PROJ-8" automatically
+- Agent tools wired to focused endpoints — no full pipeline dumps
+- Activity.Text extraction — no question nodes, seamless UX
+- Power Automate connector updated with all agent endpoints
+
+## Phase 12 — Database Migration ✅ Complete
+- Migrated from Render PostgreSQL (free tier, expires) to Neon PostgreSQL
+- Zero downtime migration — SPRING_DATASOURCE_URL updated in Render env vars
+- Neon free tier — no expiry, production-grade, AWS US East 1
+- All analysis history, intelligence data, and release records preserved going forward
+
+## Phase 13 — Production Hardening 📋 Planned
 - Azure / AWS deployment option
 - SOC2 compliance preparation
 - Rate limiting per tenant

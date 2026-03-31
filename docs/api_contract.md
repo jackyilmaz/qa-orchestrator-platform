@@ -29,7 +29,7 @@ Current contract version: **v2**
 
 ### POST `/qa/api/v1/qa/analyze`
 
-Analyzes a Jira issue and returns structured QA insights.
+Analyzes a Jira issue and returns structured QA insights across all 5 stages.
 
 **Request Headers**
 ```
@@ -45,11 +45,39 @@ Content-Type: application/json
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| issueKey | string | Yes | Jira issue key to analyze |
+| issueKey | string | Yes | Jira issue key to analyze. Normalized automatically — "project-4" → "PROJ-4" |
 
 ---
 
-## Response Structure
+## Agent Endpoints (Copilot Studio)
+
+Each agent endpoint runs the full pipeline internally but returns only its relevant stage as plain text. Designed for Microsoft Copilot Studio agent tools.
+
+| Method | Path | Returns |
+|--------|------|---------|
+| POST | `/qa/api/v1/agent/requirements` | Requirement analysis only |
+| POST | `/qa/api/v1/agent/testcases` | Test cases only |
+| POST | `/qa/api/v1/agent/risk` | Risk analysis only |
+| POST | `/qa/api/v1/agent/automation` | Automation strategy only |
+| POST | `/qa/api/v1/agent/bugreport` | Bug report only |
+
+**Request Body (all agent endpoints)**
+```json
+{
+  "issueKey": "PROJ-5"
+}
+```
+
+**Response (all agent endpoints)**
+```json
+{
+  "result": "Formatted plain text output for the requested stage"
+}
+```
+
+---
+
+## Response Structure (Full Analysis)
 
 ```json
 {
@@ -195,10 +223,10 @@ Path: `analysis.stages.automation`
 
 ```json
 {
-  "automationRecommendation": "Automation (UI-heavy)",
-  "automationReasoning": "The feature is primarily user-facing with no backend API test cases generated.",
-  "coverageSplit": "UI 100% / API 0%",
-  "frameworkSuggestion": "Selenium + TestNG (Java) or Playwright (TypeScript)"
+  "automationRecommendation": "Hybrid (UI + API)",
+  "automationReasoning": "The feature has both user-facing interactions and backend validation logic.",
+  "coverageSplit": "UI 60% / API 40%",
+  "frameworkSuggestion": "Java + Selenium + TestNG + REST Assured"
 }
 ```
 
@@ -319,6 +347,53 @@ These exist only for compatibility. Canonical consumers should use `analysis.sta
 
 ---
 
+# History & Intelligence Endpoints
+
+## GET `/qa/api/v1/history`
+Returns the last 10 analysis records.
+
+## GET `/qa/api/v1/history/{issueKey}`
+Returns all analysis records for a specific Jira issue key.
+
+## GET `/qa/api/v1/intelligence/summary`
+Returns aggregated intelligence summary across all analyses.
+
+```json
+{
+  "totalAnalyses": 10,
+  "averageRiskScore": 78,
+  "highRiskCount": 7,
+  "blockedCount": 5,
+  "mostAnalyzedIssues": [
+    { "issueKey": "PROJ-5", "count": 3 },
+    { "issueKey": "PROJ-6", "count": 2 }
+  ]
+}
+```
+
+## GET `/qa/api/v1/intelligence/high-risk`
+Returns all analyses with riskLevel = HIGH, ordered by risk score descending.
+
+## GET `/qa/api/v1/intelligence/blocked`
+Returns all analyses with releaseRecommendation = Block, ordered by most recent first.
+
+## GET `/qa/api/v1/intelligence/released`
+Returns all released tickets with QA verdicts.
+
+## GET `/qa/api/v1/intelligence/released/summary`
+Returns a Copilot-friendly plain text summary of released tickets.
+
+## GET `/qa/api/v1/intelligence/trends`
+Returns risk trends across re-analyzed issues.
+
+## GET `/qa/api/v1/intelligence/trends/{issueKey}`
+Returns full risk score timeline for a specific issue.
+
+## GET `/qa/api/v1/intelligence/reanalyzed`
+Returns most re-analyzed issues ordered by analysis count.
+
+---
+
 # Local Testing
 
 ```bash
@@ -343,47 +418,7 @@ curl -X POST http://localhost:10000/qa/api/v1/qa/analyze \
 - QA workflow orchestration
 - AI-assisted test planning
 - Release decision support
-- Microsoft Copilot Studio
-- Power Automate
+- Microsoft Copilot Studio (7 dedicated agents)
+- Power Automate (custom connector, Swagger v3)
+- Jira webhook automation
 - Dashboard visualization
-
----
-
-# History & Intelligence Endpoints
-
-## GET `/qa/api/v1/history`
-
-Returns the last 10 analysis records.
-
-## GET `/qa/api/v1/history/{issueKey}`
-
-Returns all analysis records for a specific Jira issue key.
-
-Example: `/qa/api/v1/history/PROJ-5`
-
-## GET `/qa/api/v1/intelligence/summary`
-
-Returns an aggregated intelligence summary across all analyses.
-
-Example response:
-
-```json
-{
-  "totalAnalyses": 10,
-  "averageRiskScore": 78,
-  "highRiskCount": 7,
-  "blockedCount": 5,
-  "mostAnalyzedIssues": [
-    { "issueKey": "PROJ-5", "count": 3 },
-    { "issueKey": "PROJ-6", "count": 2 }
-  ]
-}
-```
-
-## GET `/qa/api/v1/intelligence/high-risk`
-
-Returns all analyses with riskLevel = HIGH, ordered by risk score descending.
-
-## GET `/qa/api/v1/intelligence/blocked`
-
-Returns all analyses with releaseRecommendation = Block, ordered by most recent first.
