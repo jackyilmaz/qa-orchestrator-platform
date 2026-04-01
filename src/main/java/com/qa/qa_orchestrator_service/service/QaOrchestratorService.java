@@ -28,7 +28,7 @@ import java.util.concurrent.TimeoutException;
 @Service
 public class QaOrchestratorService {
 
-    private static final int PIPELINE_TIMEOUT_SECONDS = 25;
+    private static final int PIPELINE_TIMEOUT_SECONDS = 60;
 
     private final JiraClient jiraClient;
     private final RequirementAnalysisStage requirementAnalysisStage;
