@@ -6,8 +6,10 @@ import com.qa.qa_orchestrator_service.service.QaOrchestratorService;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @RestController
 @RequestMapping("/qa/api/v1/agent")
@@ -15,13 +17,40 @@ public class QaAgentController {
 
     private final QaOrchestratorService service;
 
+    // In-memory cache: issueKey -> cached result + timestamp
+    private final ConcurrentHashMap<String, CachedResult> cache = new ConcurrentHashMap<>();
+    private static final long CACHE_TTL_SECONDS = 300; // 5 minutes
+
+    private static class CachedResult {
+        final QaAnalysisResult result;
+        final Instant cachedAt;
+        CachedResult(QaAnalysisResult result) {
+            this.result = result;
+            this.cachedAt = Instant.now();
+        }
+        boolean isExpired() {
+            return Instant.now().isAfter(cachedAt.plusSeconds(CACHE_TTL_SECONDS));
+        }
+    }
+
     public QaAgentController(QaOrchestratorService service) {
         this.service = service;
     }
 
+    private QaAnalysisResult getOrAnalyze(String issueKey) {
+        String key = issueKey.toUpperCase();
+        CachedResult cached = cache.get(key);
+        if (cached != null && !cached.isExpired()) {
+            return cached.result;
+        }
+        QaAnalysisResult result = service.runAnalysis(issueKey);
+        cache.put(key, new CachedResult(result));
+        return result;
+    }
+
     @PostMapping(value = "/requirements", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public Map<String, String> getRequirements(@RequestBody QaAnalyzeRequest request) {
-        QaAnalysisResult r = service.runAnalysis(request.getIssueKey());
+        QaAnalysisResult r = getOrAnalyze(request.getIssueKey());
         StringBuilder sb = new StringBuilder();
         sb.append("📋 Requirement Analysis — ").append(r.getTraceabilityId()).append("\n\n");
         sb.append("Status: ").append(safe(r.getRequirementStatus())).append("\n");
@@ -36,7 +65,7 @@ public class QaAgentController {
 
     @PostMapping(value = "/testcases", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public Map<String, String> getTestCases(@RequestBody QaAnalyzeRequest request) {
-        QaAnalysisResult r = service.runAnalysis(request.getIssueKey());
+        QaAnalysisResult r = getOrAnalyze(request.getIssueKey());
         StringBuilder sb = new StringBuilder();
         sb.append("🧪 Test Cases — ").append(r.getTraceabilityId()).append("\n\n");
         appendList(sb, "Test Scenarios", r.getTestScenarios());
@@ -62,7 +91,7 @@ public class QaAgentController {
 
     @PostMapping(value = "/risk", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public Map<String, String> getRisk(@RequestBody QaAnalyzeRequest request) {
-        QaAnalysisResult r = service.runAnalysis(request.getIssueKey());
+        QaAnalysisResult r = getOrAnalyze(request.getIssueKey());
         StringBuilder sb = new StringBuilder();
         sb.append("⚠️ Risk Analysis — ").append(r.getTraceabilityId()).append("\n\n");
         sb.append("Risk Score: ").append(r.getRiskScore() != null ? r.getRiskScore() : "N/A").append("\n");
@@ -75,7 +104,7 @@ public class QaAgentController {
 
     @PostMapping(value = "/automation", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public Map<String, String> getAutomation(@RequestBody QaAnalyzeRequest request) {
-        QaAnalysisResult r = service.runAnalysis(request.getIssueKey());
+        QaAnalysisResult r = getOrAnalyze(request.getIssueKey());
         StringBuilder sb = new StringBuilder();
         sb.append("🤖 Automation Strategy — ").append(r.getTraceabilityId()).append("\n\n");
         sb.append("Recommendation: ").append(safe(r.getAutomationRecommendation())).append("\n");
@@ -87,7 +116,7 @@ public class QaAgentController {
 
     @PostMapping(value = "/bugreport", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public Map<String, String> getBugReport(@RequestBody QaAnalyzeRequest request) {
-        QaAnalysisResult r = service.runAnalysis(request.getIssueKey());
+        QaAnalysisResult r = getOrAnalyze(request.getIssueKey());
         StringBuilder sb = new StringBuilder();
         sb.append("🐛 Bug Report — ").append(r.getTraceabilityId()).append("\n\n");
 
