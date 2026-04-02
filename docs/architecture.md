@@ -23,8 +23,8 @@ User / Copilot Studio / Power Automate / Jira Webhook
       Spring Boot Service
          │         │         │
          ▼         ▼         ▼
-   Jira REST    Groq LLM  Neon PostgreSQL
-      API          API
+   Jira REST   Azure OpenAI  Neon PostgreSQL
+      API        (GPT-4o)
 ```
 
 ---
@@ -104,11 +104,13 @@ Structured QA Response (analysis.stages)
 - Maven
 
 ### LLM
-- Groq API (Llama 3.3 70B) — default
-- Pluggable via LlmClient interface — Azure OpenAI, AWS Bedrock supported
+- Azure OpenAI (GPT-4o) — active provider
+- Pluggable via `LlmClient` interface — Groq and AWS Bedrock supported
+- Switch providers via `LLM_PROVIDER` env var — no code changes required
 
 ### Database
 - Neon PostgreSQL (free tier, no expiry, AWS US East 1)
+- Migrated from Render PostgreSQL (free tier expires) to Neon
 
 ### Infrastructure
 - Docker
@@ -182,13 +184,15 @@ com.qa.qa_orchestrator_service
 
 **LLM client is pluggable** — `LlmClient` is an interface. Switch providers by changing `LLM_PROVIDER` env var — no code changes required.
 
-**Graceful fallback on LLM error** — every stage has a fallback that prevents pipeline crash. If Groq fails on one stage, the pipeline continues with a default artifact.
+**Azure OpenAI as active provider** — GPT-4o is the current active model, deployed on Azure. Groq (Llama 3.3 70B) and AWS Bedrock (Claude 3.5 Sonnet) are supported alternatives.
+
+**Graceful fallback on LLM error** — every stage has a fallback that prevents pipeline crash. If the LLM fails on one stage, the pipeline continues with a default artifact.
 
 **Dedicated agent endpoints** — `QaAgentController` exposes 5 focused endpoints (`/qa/api/v1/agent/*`). Each runs the full pipeline internally but returns only its relevant stage as plain text. Copilot agents call these directly.
 
 **IssueKey normalization** — `IssueKeyNormalizer` converts any format ("project-8", "PROJECT-8", "proj-8") to canonical form ("PROJ-8") before Jira API calls.
 
-**Single pipeline execution per request** — the controller calls `runAnalysis()` once. Pipeline does not run twice.
+**Single pipeline execution per request** — the controller calls `runAnalysis()` once. The pipeline does not run twice.
 
 **Neon PostgreSQL** — migrated from Render free PostgreSQL (expires) to Neon free tier (no expiry). Zero downtime migration via env var update.
 

@@ -45,7 +45,7 @@ Content-Type: application/json
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| issueKey | string | Yes | Jira issue key to analyze. Normalized automatically — "project-4" → "PROJ-4" |
+| issueKey | string | Yes | Jira issue key. Normalized automatically — "project-4" → "PROJ-4" |
 
 ---
 
@@ -400,7 +400,10 @@ Returns most re-analyzed issues ordered by analysis count.
 export JIRA_BASE_URL=https://your-domain.atlassian.net
 export JIRA_EMAIL=your-email@example.com
 export JIRA_API_TOKEN=your-jira-api-token
-export GROQ_API_KEY=gsk_...
+export AZURE_OPENAI_KEY=your-azure-openai-key
+export AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
+export AZURE_OPENAI_DEPLOYMENT=gpt-4o
+export LLM_PROVIDER=azure
 
 ./mvnw spring-boot:run
 ```
