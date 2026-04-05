@@ -45,47 +45,7 @@ public class HistoryController {
 
     @GetMapping("/api/v1/intelligence/released/summary")
     public ResponseEntity<Map<String, Object>> getReleasedSummaryForCopilot() {
-        List<AnalysisRecord> released = analysisRecordService.getReleasedTickets();
-
-        if (released.isEmpty()) {
-            return ResponseEntity.ok(Map.of(
-                "count", 0,
-                "message", "No tickets have been released yet.",
-                "tickets", List.of()
-            ));
-        }
-
-        List<Map<String, Object>> tickets = released.stream().map(r -> {
-            String verdict = r.getReleaseSummary() != null
-                ? r.getReleaseSummary().split("\n")[0].replaceAll("(?i)^verdict:\\s*", "").trim()
-                : "No verdict available";
-            String releasedDate = r.getCompletedAt() != null
-                ? r.getCompletedAt().toString().substring(0, 10)
-                : "-";
-            return Map.<String, Object>of(
-                "issueKey", r.getIssueKey(),
-                "feature", r.getFeatureSummary() != null ? r.getFeatureSummary() : "-",
-                "riskLevel", r.getRiskLevel() != null ? r.getRiskLevel() : "-",
-                "verdict", verdict,
-                "releasedAt", releasedDate
-            );
-        }).toList();
-
-        StringBuilder message = new StringBuilder();
-        message.append("Released tickets (").append(released.size()).append(" total):\n\n");
-        for (Map<String, Object> t : tickets) {
-            message.append("📋 ").append(t.get("issueKey")).append("\n");
-            message.append("Feature: ").append(t.get("feature")).append("\n");
-            message.append("Risk: ").append(t.get("riskLevel")).append("\n");
-            message.append("Verdict: ").append(t.get("verdict")).append("\n");
-            message.append("Released: ").append(t.get("releasedAt")).append("\n\n");
-        }
-
-        return ResponseEntity.ok(Map.of(
-            "count", released.size(),
-            "message", message.toString().trim(),
-            "tickets", tickets
-        ));
+        return ResponseEntity.ok(analysisRecordService.getReleasedSummary());
     }
 
     @GetMapping("/api/v1/intelligence/summary")

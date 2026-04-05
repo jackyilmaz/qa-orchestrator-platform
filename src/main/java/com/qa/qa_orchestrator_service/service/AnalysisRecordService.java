@@ -46,35 +46,34 @@ public class AnalysisRecordService {
     }
 
     public void markAsCompleted(String issueKey, String releaseSummary) {
-    try {
-        List<AnalysisRecord> history = repository.findByIssueKeyOrderByAnalyzedAtDesc(issueKey);
-        if (history.isEmpty()) {
-            log.warn("[DB] No analysis record found for {} to mark as completed", issueKey);
-            return;
+        try {
+            List<AnalysisRecord> history = repository.findByIssueKeyOrderByAnalyzedAtDesc(issueKey);
+            if (history.isEmpty()) {
+                log.warn("[DB] No analysis record found for {} to mark as completed", issueKey);
+                return;
+            }
+
+            AnalysisRecord target = history.get(0);
+
+            if (target.getRiskLevel() == null) {
+                target = history.stream()
+                    .filter(r -> r.getRiskLevel() != null)
+                    .findFirst()
+                    .orElse(history.get(0));
+                log.warn("[DB] Latest record for {} had null riskLevel, using record from {}",
+                    issueKey, target.getAnalyzedAt());
+            }
+
+            target.setCompletedAt(Instant.now());
+            target.setReleaseSummary(releaseSummary);
+            repository.save(target);
+            log.info("[DB] Marked {} as completed | riskLevel={} | riskScore={}",
+                issueKey, target.getRiskLevel(), target.getRiskScore());
+
+        } catch (Exception e) {
+            log.warn("[DB] Failed to mark {} as completed: {}", issueKey, e.getMessage());
         }
-
-        AnalysisRecord target = history.get(0);
-
-        // If the latest record has no risk data, find the most recent one that does
-        if (target.getRiskLevel() == null) {
-            target = history.stream()
-                .filter(r -> r.getRiskLevel() != null)
-                .findFirst()
-                .orElse(history.get(0));
-            log.warn("[DB] Latest record for {} had null riskLevel, using record from {}",
-                issueKey, target.getAnalyzedAt());
-        }
-
-        target.setCompletedAt(Instant.now());
-        target.setReleaseSummary(releaseSummary);
-        repository.save(target);
-        log.info("[DB] Marked {} as completed | riskLevel={} | riskScore={}",
-            issueKey, target.getRiskLevel(), target.getRiskScore());
-
-    } catch (Exception e) {
-        log.warn("[DB] Failed to mark {} as completed: {}", issueKey, e.getMessage());
     }
-}
 
     public List<AnalysisRecord> getRecentAnalyses() {
         return repository.findTop10ByOrderByAnalyzedAtDesc();
@@ -94,6 +93,50 @@ public class AnalysisRecordService {
 
     public List<AnalysisRecord> getReleasedTickets() {
         return repository.findByCompletedAtIsNotNullOrderByCompletedAtDesc();
+    }
+
+    public Map<String, Object> getReleasedSummary() {
+        List<AnalysisRecord> released = getReleasedTickets();
+
+        if (released.isEmpty()) {
+            return Map.of(
+                "count", 0,
+                "message", "No tickets have been released yet.",
+                "tickets", List.of()
+            );
+        }
+
+        List<Map<String, Object>> tickets = released.stream().map(r -> {
+            String verdict = r.getReleaseSummary() != null
+                ? r.getReleaseSummary().split("\n")[0].replaceAll("(?i)^verdict:\\s*", "").trim()
+                : "No verdict available";
+            String releasedDate = r.getCompletedAt() != null
+                ? r.getCompletedAt().toString().substring(0, 10)
+                : "-";
+            return Map.<String, Object>of(
+                "issueKey", r.getIssueKey(),
+                "feature", r.getFeatureSummary() != null ? r.getFeatureSummary() : "-",
+                "riskLevel", r.getRiskLevel() != null ? r.getRiskLevel() : "-",
+                "verdict", verdict,
+                "releasedAt", releasedDate
+            );
+        }).toList();
+
+        StringBuilder message = new StringBuilder();
+        message.append("Released tickets (").append(released.size()).append(" total):\n\n");
+        for (Map<String, Object> t : tickets) {
+            message.append("📋 ").append(t.get("issueKey")).append("\n");
+            message.append("Feature: ").append(t.get("feature")).append("\n");
+            message.append("Risk: ").append(t.get("riskLevel")).append("\n");
+            message.append("Verdict: ").append(t.get("verdict")).append("\n");
+            message.append("Released: ").append(t.get("releasedAt")).append("\n\n");
+        }
+
+        return Map.of(
+            "count", released.size(),
+            "message", message.toString().trim(),
+            "tickets", tickets
+        );
     }
 
     public Map<String, Object> getSummary() {
