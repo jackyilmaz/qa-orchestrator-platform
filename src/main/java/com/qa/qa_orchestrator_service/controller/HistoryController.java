@@ -57,7 +57,7 @@ public class HistoryController {
 
         List<Map<String, Object>> tickets = released.stream().map(r -> {
             String verdict = r.getReleaseSummary() != null
-                ? r.getReleaseSummary().split("\n")[0]
+                ? r.getReleaseSummary().split("\n")[0].replaceAll("(?i)^verdict:\\s*", "").trim()
                 : "No verdict available";
             return Map.<String, Object>of(
                 "issueKey", r.getIssueKey(),
