@@ -46,17 +46,35 @@ public class AnalysisRecordService {
     }
 
     public void markAsCompleted(String issueKey, String releaseSummary) {
-        try {
-            repository.findTopByIssueKeyOrderByAnalyzedAtDesc(issueKey).ifPresent(record -> {
-                record.setCompletedAt(Instant.now());
-                record.setReleaseSummary(releaseSummary);
-                repository.save(record);
-                log.info("[DB] Marked {} as completed with release summary", issueKey);
-            });
-        } catch (Exception e) {
-            log.warn("[DB] Failed to mark {} as completed: {}", issueKey, e.getMessage());
+    try {
+        List<AnalysisRecord> history = repository.findByIssueKeyOrderByAnalyzedAtDesc(issueKey);
+        if (history.isEmpty()) {
+            log.warn("[DB] No analysis record found for {} to mark as completed", issueKey);
+            return;
         }
+
+        AnalysisRecord target = history.get(0);
+
+        // If the latest record has no risk data, find the most recent one that does
+        if (target.getRiskLevel() == null) {
+            target = history.stream()
+                .filter(r -> r.getRiskLevel() != null)
+                .findFirst()
+                .orElse(history.get(0));
+            log.warn("[DB] Latest record for {} had null riskLevel, using record from {}",
+                issueKey, target.getAnalyzedAt());
+        }
+
+        target.setCompletedAt(Instant.now());
+        target.setReleaseSummary(releaseSummary);
+        repository.save(target);
+        log.info("[DB] Marked {} as completed | riskLevel={} | riskScore={}",
+            issueKey, target.getRiskLevel(), target.getRiskScore());
+
+    } catch (Exception e) {
+        log.warn("[DB] Failed to mark {} as completed: {}", issueKey, e.getMessage());
     }
+}
 
     public List<AnalysisRecord> getRecentAnalyses() {
         return repository.findTop10ByOrderByAnalyzedAtDesc();
