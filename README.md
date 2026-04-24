@@ -19,6 +19,7 @@
 | Dashboard | https://qa-orchestrator-service.onrender.com |
 | API | https://qa-orchestrator-service.onrender.com/qa/api/v1/qa/analyze |
 | Health | https://qa-orchestrator-service.onrender.com/qa/health |
+| Ping | https://qa-orchestrator-service.onrender.com/ping |
 
 ---
 
@@ -129,6 +130,7 @@ Setup: Jira → System → WebHooks → URL: `https://qa-orchestrator-service.on
 
 | Method | Path | Description |
 |--------|------|-------------|
+| GET | `/ping` | Lightweight keep-alive — no DB call |
 | GET | `/` | Redirects to dashboard |
 | GET | `/qa/health` | Health + intelligence summary |
 | GET | `/qa/dashboard` | Intelligence dashboard |

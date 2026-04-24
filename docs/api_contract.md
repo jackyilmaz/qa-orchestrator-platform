@@ -25,6 +25,22 @@ Current contract version: **v2**
 
 ---
 
+## Keep-Alive Endpoint
+
+### GET `/ping`
+
+Lightweight endpoint used by cron jobs to keep the Render service warm.
+Does **not** touch the database. Returns immediately.
+
+**Response**
+```json
+{ "status": "OK" }
+```
+
+Use this endpoint for external monitoring and keep-alive pings — not `/qa/health`, which triggers a database query on every call.
+
+---
+
 ## Primary Endpoint
 
 ### POST `/qa/api/v1/qa/analyze`
