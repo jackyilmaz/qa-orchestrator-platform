@@ -1,51 +1,43 @@
 server:
   port: ${PORT:10000}
 
-spring:
-  datasource:
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
-    driver-class-name: org.postgresql.Driver
-  jpa:
-    open-in-view: false
-    hibernate:
-      ddl-auto: update
-    show-sql: false
-
-# LLM Provider — set LLM_PROVIDER env var to switch
-# groq  → Groq API (default, free tier available)
-# azure → Azure OpenAI (GPT-4o, enterprise)
-# aws   → AWS Bedrock (Claude 3.5, enterprise)
-llm:
-  provider: ${LLM_PROVIDER:groq}
-
-# Groq (default)
-groq:
-  api-key: ${GROQ_API_KEY:}
-
-# Azure OpenAI
-azure:
-  openai:
-    key: ${AZURE_OPENAI_KEY:}
-    endpoint: ${AZURE_OPENAI_ENDPOINT:}
-    deployment: ${AZURE_OPENAI_DEPLOYMENT:gpt-4o}
-
-# AWS Bedrock
-aws:
-  access-key: ${AWS_ACCESS_KEY:}
-  secret-key: ${AWS_SECRET_KEY:}
-  region: ${AWS_REGION:us-east-1}
-
 jira:
   base-url: ${JIRA_BASE_URL}
   email: ${JIRA_EMAIL}
   api-token: ${JIRA_API_TOKEN}
   comment-enabled: ${JIRA_COMMENT_ENABLED:false}
 
-logging:
-  level:
-    com.qa.qa_orchestrator_service: INFO
-    root: INFO
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+llm:
+  provider: ${LLM_PROVIDER:azure}
+
+# ── Azure OpenAI (active default) ──
+azure:
+  openai:
+    key: ${AZURE_OPENAI_KEY:}
+    endpoint: ${AZURE_OPENAI_ENDPOINT:}
+    deployment: ${AZURE_OPENAI_DEPLOYMENT:gpt-4o}
+
+# ── Groq (fast, free tier alternative) ──
+groq:
+  api-key: ${GROQ_API_KEY:}
+
+# ── AWS Bedrock (enterprise, GovCloud) ──
+aws:
+  access-key: ${AWS_ACCESS_KEY:}
+  secret-key: ${AWS_SECRET_KEY:}
+  region: ${AWS_REGION:us-east-1}
+
+# ── Ollama (self-hosted, fully offline) ──
+ollama:
+  base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+  model: ${OLLAMA_MODEL:llama3.3}
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false

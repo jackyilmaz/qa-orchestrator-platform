@@ -6,6 +6,8 @@ QA Orchestrator Platform is an AI-powered QA decision engine that analyzes Jira 
 
 Each pipeline stage is powered by a large language model (LLM). Stages are not independent — each stage reads from the previous stage output and builds on it. This is what makes it a real pipeline, not a collection of isolated analyzers.
 
+The system is deployment-agnostic — it runs identically on cloud, private cloud, GovCloud, or fully air-gapped on-premise environments. All configuration is done via environment variables.
+
 ---
 
 ## High Level Architecture
@@ -23,8 +25,8 @@ User / Copilot Studio / Power Automate / Jira Webhook
       Spring Boot Service
          │         │         │
          ▼         ▼         ▼
-   Jira REST   Azure OpenAI  Neon PostgreSQL
-      API        (GPT-4o)
+   Jira REST   LLM Provider  PostgreSQL
+      API      (pluggable)   (Neon or on-prem)
 ```
 
 ---
@@ -96,6 +98,37 @@ Structured QA Response (analysis.stages)
 
 ---
 
+## LLM Provider Architecture
+
+The `LlmClient` interface decouples the pipeline from any specific LLM provider. Switching providers requires only a single env var change — no code changes.
+
+```
+QaOrchestratorService
+        │
+        ▼
+   LlmClient (interface)
+        │
+        ├── AzureOpenAiClient   (LLM_PROVIDER=azure)  — GPT-4o, cloud default
+        ├── GroqClient          (LLM_PROVIDER=groq)   — Llama 3.3 70B, fast/free
+        ├── AwsBedrockClient    (LLM_PROVIDER=aws)    — Claude 3.5, GovCloud
+        └── OllamaClient        (LLM_PROVIDER=ollama) — any local model, fully offline
+```
+
+---
+
+## Deployment Options
+
+| Mode | LLM | Database | Infrastructure | Target |
+|------|-----|----------|----------------|--------|
+| Cloud SaaS | Azure OpenAI | Neon PostgreSQL | Render Cloud | Default |
+| Private Cloud | Azure / AWS | Any PostgreSQL | Customer cloud | Enterprise |
+| GovCloud | AWS Bedrock | Any PostgreSQL | AWS GovCloud | Government |
+| Air-Gapped | Ollama (local) | On-prem PostgreSQL | Customer servers | Military / Regulated |
+
+All modes use the same Docker image and Java codebase. The only difference is which environment variables are set.
+
+---
+
 ## Technology Stack
 
 ### Backend
@@ -104,20 +137,23 @@ Structured QA Response (analysis.stages)
 - Maven
 
 ### LLM
-- Azure OpenAI (GPT-4o) — active provider
-- Pluggable via `LlmClient` interface — Groq and AWS Bedrock supported
-- Switch providers via `LLM_PROVIDER` env var — no code changes required
+- Azure OpenAI (GPT-4o) — active cloud provider
+- Groq (Llama 3.3 70B) — fast, free tier alternative
+- AWS Bedrock (Claude 3.5 Sonnet) — enterprise, GovCloud ready
+- Ollama — self-hosted, fully offline, air-gapped capable
+- All pluggable via `LlmClient` interface — switch with `LLM_PROVIDER` env var
 
 ### Database
-- Neon PostgreSQL (free tier, no expiry, AWS US East 1)
-- Migrated from Render PostgreSQL (free tier expires) to Neon
+- Neon PostgreSQL — cloud default (free tier, no expiry)
+- Any PostgreSQL instance supported — on-premise, RDS, Cloud SQL
 
 ### Infrastructure
-- Docker
-- Render Cloud
+- Docker — single container, runs anywhere
+- Render Cloud — current cloud deployment
+- Any server or cloud — Docker makes this portable
 
 ### Integrations
-- Jira REST API
+- Jira REST API (cloud or on-premise)
 - Microsoft Copilot Studio (7 dedicated agents)
 - Power Automate (custom connector, Swagger v3)
 
@@ -140,7 +176,7 @@ com.qa.qa_orchestrator_service
 │   └── JiraClient.java
 ├── model
 │   ├── QaAnalysisResult.java
-│   ├── QaAnalyzeRequest.java         ← includes issueKey normalization
+│   ├── QaAnalyzeRequest.java
 │   ├── QaAnalyzeResponse.java
 │   ├── QaStagesArtifact.java
 │   ├── QaTestCase.java
@@ -158,9 +194,10 @@ com.qa.qa_orchestrator_service
 │   ├── PipelineLogger.java
 │   ├── llm
 │   │   ├── LlmClient.java            ← interface
-│   │   ├── GroqClient.java
-│   │   ├── AzureOpenAiClient.java
-│   │   └── AwsBedrockClient.java
+│   │   ├── AzureOpenAiClient.java    ← LLM_PROVIDER=azure
+│   │   ├── GroqClient.java           ← LLM_PROVIDER=groq
+│   │   ├── AwsBedrockClient.java     ← LLM_PROVIDER=aws
+│   │   └── OllamaClient.java         ← LLM_PROVIDER=ollama (offline)
 │   └── stage
 │       ├── RequirementAnalysisStage.java
 │       ├── TestDesignStage.java
@@ -182,19 +219,23 @@ com.qa.qa_orchestrator_service
 
 **Stages feed each other** — TestDesignStage does not re-read the Jira JSON. It reads `clarifiedRequirements` and `edgeCases` from RequirementStage output. This is the core pipeline pattern.
 
-**LLM client is pluggable** — `LlmClient` is an interface. Switch providers by changing `LLM_PROVIDER` env var — no code changes required.
+**LLM client is pluggable** — `LlmClient` is an interface. Four providers supported: Azure OpenAI, Groq, AWS Bedrock, Ollama. Switch by changing `LLM_PROVIDER` env var — no code changes required.
 
-**Azure OpenAI as active provider** — GPT-4o is the current active model, deployed on Azure. Groq (Llama 3.3 70B) and AWS Bedrock (Claude 3.5 Sonnet) are supported alternatives.
+**Ollama for offline/air-gapped** — `OllamaClient` calls a locally running Ollama server. Zero internet required after initial model download. Supports Llama 3.3, Mistral, Phi-3, CodeLlama, and any model Ollama supports.
 
-**Graceful fallback on LLM error** — every stage has a fallback that prevents pipeline crash. If the LLM fails on one stage, the pipeline continues with a default artifact.
+**Azure OpenAI as active provider** — GPT-4o is the current active model. Groq (Llama 3.3 70B) and AWS Bedrock (Claude 3.5 Sonnet) are supported alternatives.
 
-**Dedicated agent endpoints** — `QaAgentController` exposes 5 focused endpoints (`/qa/api/v1/agent/*`). Each runs the full pipeline internally but returns only its relevant stage as plain text. Copilot agents call these directly.
+**Graceful fallback on LLM error** — every stage has a fallback that prevents pipeline crash.
 
-**IssueKey normalization** — `IssueKeyNormalizer` converts any format ("project-8", "PROJECT-8", "proj-8") to canonical form ("PROJ-8") before Jira API calls.
+**Dedicated agent endpoints** — `QaAgentController` exposes 5 focused endpoints. Each runs the full pipeline internally but returns only its relevant stage as plain text.
 
-**Single pipeline execution per request** — the controller calls `runAnalysis()` once. The pipeline does not run twice.
+**IssueKey normalization** — `IssueKeyNormalizer` converts any format to canonical form before Jira API calls.
 
-**Neon PostgreSQL** — migrated from Render free PostgreSQL (expires) to Neon free tier (no expiry). Zero downtime migration via env var update.
+**Single pipeline execution per request** — the controller calls `runAnalysis()` once.
+
+**Neon PostgreSQL** — migrated from Render free PostgreSQL to Neon free tier (no expiry). On-premise PostgreSQL also supported via JDBC URL.
+
+**Docker-first** — the entire service runs in a single Docker container. This is what makes on-premise and air-gapped deployment possible with no architectural changes.
 
 ---
 
@@ -205,3 +246,4 @@ com.qa.qa_orchestrator_service
 - Release decision engine — structured go/no-go logic with override support
 - Multi-tenant DB isolation — per-customer schema or database
 - Rate limiting per tenant — prevent LLM abuse
+- On-premise deployment guide — step-by-step IT team documentation

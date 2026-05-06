@@ -7,8 +7,11 @@
 ![LLM](https://img.shields.io/badge/LLM-Azure%20OpenAI%20GPT--4o-0078d4)
 ![DB](https://img.shields.io/badge/DB-Neon%20PostgreSQL-blue)
 ![Copilot](https://img.shields.io/badge/Copilot-Studio-0078d4)
+![Offline](https://img.shields.io/badge/Offline-Ollama%20Ready-green)
 
 **QA Orchestrator Platform** is an AI-powered QA decision engine covering the full QA lifecycle — from ticket creation to release — integrated with Microsoft Copilot Studio and Power Automate as a 7-agent system.
+
+Supports cloud, private cloud, GovCloud, and fully air-gapped on-premise deployments.
 
 ---
 
@@ -53,7 +56,8 @@ User / Copilot Studio / Power Automate / Jira Webhook
      Spring Boot Service
        │           │           │
        ▼           ▼           ▼
-  Jira REST   Azure OpenAI  Neon PostgreSQL
+  Jira REST   LLM Provider  PostgreSQL
+  API         (pluggable)   (Neon or on-prem)
 ```
 
 ---
@@ -78,13 +82,27 @@ Issue key normalization is automatic — "project-8" → "PROJ-8".
 
 ## LLM Provider Support
 
-| Provider | Env Var | Model | Notes |
-|----------|---------|-------|-------|
-| Azure OpenAI (active) | `LLM_PROVIDER=azure` | GPT-4o | Current active provider |
+| Provider | Env Var | Model | Use Case |
+|----------|---------|-------|----------|
+| Azure OpenAI **(active)** | `LLM_PROVIDER=azure` | GPT-4o | Cloud, default |
 | Groq | `LLM_PROVIDER=groq` | Llama 3.3 70B | Fast, free tier alternative |
-| AWS Bedrock | `LLM_PROVIDER=aws` | Claude 3.5 Sonnet | Enterprise, AWS ecosystem |
+| AWS Bedrock | `LLM_PROVIDER=aws` | Claude 3.5 Sonnet | Enterprise, GovCloud |
+| Ollama | `LLM_PROVIDER=ollama` | Llama 3.3, Mistral, Phi-3 | **Fully offline, air-gapped** |
 
 Switch providers via `LLM_PROVIDER` env var — no code changes required.
+
+---
+
+## Deployment Options
+
+| Mode | LLM | Database | Infrastructure | Target |
+|------|-----|----------|----------------|--------|
+| Cloud SaaS | Azure OpenAI | Neon PostgreSQL | Render Cloud | Default |
+| Private Cloud | Azure / AWS | Any PostgreSQL | Customer cloud | Enterprise |
+| GovCloud | AWS Bedrock | Any PostgreSQL | AWS GovCloud | Government |
+| Air-Gapped | Ollama (local) | On-prem PostgreSQL | Customer servers | Military / Regulated |
+
+All modes use the same Docker image. Switch via environment variables only.
 
 ---
 
@@ -171,6 +189,7 @@ Setup: Jira → System → WebHooks → URL: `https://qa-orchestrator-service.on
 | `JIRA_BASE_URL` | Yes | Jira instance URL |
 | `JIRA_EMAIL` | Yes | Jira account email |
 | `JIRA_API_TOKEN` | Yes | Jira API token |
+| `LLM_PROVIDER` | No | azure / groq / aws / ollama (default: azure) |
 | `AZURE_OPENAI_KEY` | Yes (Azure) | Azure OpenAI key |
 | `AZURE_OPENAI_ENDPOINT` | Yes (Azure) | Azure OpenAI endpoint |
 | `AZURE_OPENAI_DEPLOYMENT` | No | Model deployment name (default: gpt-4o) |
@@ -178,8 +197,9 @@ Setup: Jira → System → WebHooks → URL: `https://qa-orchestrator-service.on
 | `AWS_ACCESS_KEY` | Yes (AWS) | AWS access key |
 | `AWS_SECRET_KEY` | Yes (AWS) | AWS secret key |
 | `AWS_REGION` | No | AWS region (default: us-east-1) |
-| `LLM_PROVIDER` | No | azure / groq / aws (default: azure) |
-| `SPRING_DATASOURCE_URL` | Yes | Neon PostgreSQL JDBC URL |
+| `OLLAMA_BASE_URL` | Yes (Ollama) | Ollama server URL (default: http://localhost:11434) |
+| `OLLAMA_MODEL` | No | Ollama model name (default: llama3.3) |
+| `SPRING_DATASOURCE_URL` | Yes | PostgreSQL JDBC URL |
 | `SPRING_DATASOURCE_USERNAME` | Yes | PostgreSQL username |
 | `SPRING_DATASOURCE_PASSWORD` | Yes | PostgreSQL password |
 | `JIRA_COMMENT_ENABLED` | No | Post analysis to Jira comment (default: false) |
@@ -208,15 +228,43 @@ curl -X POST http://localhost:10000/qa/api/v1/qa/analyze \
 
 ---
 
+## Ollama (Offline) Setup
+
+```bash
+# 1. Install Ollama
+brew install ollama   # macOS
+# Linux / Windows: https://ollama.com
+
+# 2. Pull a model
+ollama pull llama3.3
+
+# 3. Start Ollama
+ollama serve
+
+# 4. Set env vars
+export LLM_PROVIDER=ollama
+export OLLAMA_BASE_URL=http://localhost:11434
+export OLLAMA_MODEL=llama3.3
+
+# 5. Run the service
+./mvnw spring-boot:run
+```
+
+Supported models: `llama3.3`, `mistral`, `phi3`, `codellama`
+
+For on-premise deployments, set `OLLAMA_BASE_URL` to the internal server IP where Ollama is running.
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
 | Backend | Java 17, Spring Boot 3, Maven |
-| LLM | Azure OpenAI (GPT-4o) — active; Groq and AWS Bedrock supported |
-| Database | Neon PostgreSQL (free tier, no expiry, AWS US East 1) |
-| Infrastructure | Docker, Render Cloud |
-| Integrations | Jira REST API, Microsoft Copilot Studio, Power Automate |
+| LLM | Azure OpenAI GPT-4o (active) · Groq · AWS Bedrock · Ollama (offline) |
+| Database | Neon PostgreSQL · on-premise PostgreSQL supported |
+| Infrastructure | Docker · Render Cloud · any server |
+| Integrations | Jira REST API · Microsoft Copilot Studio · Power Automate |
 
 ---
 
@@ -234,6 +282,7 @@ curl -X POST http://localhost:10000/qa/api/v1/qa/analyze \
 | 8 | ✅ | Dashboard — search, filtering, record counts |
 | 9 | ✅ | Multi-tenant foundation — TenantConfig, architecture ready |
 | 10 | ✅ | Risk trend analysis — timeline, trends, reanalyzed issues |
-| 11 | ✅ | Multi-Agent Copilot Studio — 7 dedicated agents, focused endpoints |
+| 11 | ✅ | Multi-Agent Copilot Studio — 7 dedicated agents |
 | 12 | ✅ | Database migration — Render → Neon PostgreSQL |
-| 13 | 📋 | Production hardening — Azure/AWS, SOC2, rate limiting |
+| 13 | 📋 | Production hardening — paid tiers, rate limiting, SOC2 |
+| 14 | ✅ | On-Premise / Air-Gapped — Ollama, Docker, offline ready |

@@ -60,8 +60,18 @@
 - All analysis history, intelligence data, and release records preserved going forward
 
 ## Phase 13 — Production Hardening 📋 Planned
-- Azure / AWS deployment option
-- SOC2 compliance preparation
+- Render paid tier — eliminate cold start / 30s timeout
+- Neon Launch tier — eliminate compute quota limits
 - Rate limiting per tenant
 - Audit logging
+- SOC2 compliance preparation
 - Full multi-tenant DB isolation
+
+## Phase 14 — On-Premise / Air-Gapped Deployment ✅ Complete
+- OllamaClient added — self-hosted LLM support (Llama 3.3, Mistral, Phi-3, CodeLlama)
+- LLM_PROVIDER=ollama — zero internet required after model download
+- 4 pluggable LLM providers: Azure OpenAI, Groq, AWS Bedrock, Ollama
+- Fully Dockerized — deploys on any server, any network
+- Jira URL and all credentials configurable via env vars
+- Supports on-premise Jira, private cloud, GovCloud, and air-gapped environments
+- Target customers: government, military, banking, regulated industries
